@@ -7,12 +7,12 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// Ruta principal para probar que el servidor responde
+// Ruta de prueba
 app.get('/', (req, res) => {
-    res.send('Servidor activo y listo para realizar búsquedas.');
+    res.send('Servidor activo y funcionando correctamente.');
 });
 
-// Función para iniciar el navegador en Render
+// Función para iniciar el navegador
 async function iniciarNavegador() {
     console.log("Iniciando Chromium en la nube...");
     return await puppeteer.launch({
@@ -23,7 +23,7 @@ async function iniciarNavegador() {
     });
 }
 
-// Escuchar en el puerto de Render
+// Mantener el servidor escuchando en el puerto de Render
 app.listen(PORT, () => {
-    console.log(`Servidor corriendo exitosamente en el puerto ${PORT}`);
+    console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
