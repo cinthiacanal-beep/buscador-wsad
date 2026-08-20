@@ -7,7 +7,6 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// Datos de acceso al sistema WSAD
 const WSAD_USER = 'delegaciondjl';
 const WSAD_PASS = '1234';
 
@@ -15,16 +14,15 @@ app.get('/', (req, res) => {
     res.send('Servidor activo y funcionando correctamente.');
 });
 
-// Ruta POST que procesa la búsqueda desde Google Apps Script
 app.post('/buscar', async (req, res) => {
     const { tipoFormulario, numeroFormulario } = req.body;
     let browser = null;
 
     try {
-        console.log(`Iniciando consulta para formulario: ${numeroFormulario} (${tipoFormulario})`);
+        console.log(`Consultando formulario: ${numeroFormulario} (${tipoFormulario})`);
 
         browser = await puppeteer.launch({
-            args: chromium.args,
+            args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
             defaultViewport: chromium.defaultViewport,
             executablePath: await chromium.executablePath(),
             headless: chromium.headless,
@@ -32,27 +30,33 @@ app.post('/buscar', async (req, res) => {
 
         const page = await browser.newPage();
 
-        // 1. Iniciar sesión en WSAD
-        await page.goto('http://sistemas1.buenosaires.edu.ar/wsad/index.php/login', { waitUntil: 'networkidle0' });
-        await page.type('input[name="signin[username]"]', WSAD_USER);
-        await page.type('input[name="signin[password]"]', WSAD_PASS);
-        
-        await Promise.all([
-            page.click('input[type="submit"]'),
-            page.waitForNavigation({ waitUntil: 'networkidle0' })
-        ]);
+        // 1. Ir a la página de login
+        await page.goto('http://sistemas1.buenosaires.edu.ar/wsad/index.php/login', { waitUntil: 'networkidle2' });
 
-        // 2. Navegar a la URL del formulario
+        // Verificar si existen los inputs estándar de SGE o WSAD
+        const userInput = await page.$('input[name="signin[username]"], input[name="usuario"], #usuario');
+        const passInput = await page.$('input[name="signin[password]"], input[name="clave"], #clave');
+
+        if (userInput && passInput) {
+            await userInput.type(WSAD_USER);
+            await passInput.type(WSAD_PASS);
+
+            await Promise.all([
+                page.keyboard.press('Enter'),
+                page.waitForNavigation({ waitUntil: 'networkidle2' })
+            ]);
+        }
+
+        // 2. Navegar directamente al formulario solicitado
         const modulo = (tipoFormulario === 'titular') ? 'formulario_t_titulares' : 'formulario_t';
         const targetUrl = `http://sistemas1.buenosaires.edu.ar/wsad/frontend.php/${modulo}/${numeroFormulario}/ListGenerar`;
 
-        await page.goto(targetUrl, { waitUntil: 'networkidle0' });
+        await page.goto(targetUrl, { waitUntil: 'networkidle2' });
 
-        // 3. Obtener el contenido HTML generado
+        // 3. Extraer el HTML final
         const htmlContent = await page.content();
         await browser.close();
 
-        // Enviar respuesta exitosa a Google Apps Script
         return res.json({ exito: true, html: htmlContent });
 
     } catch (error) {
